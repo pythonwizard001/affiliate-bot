@@ -1,0 +1,9 @@
+requests
+PyGithub
+pytrends
+python-frontmatter
+praw
+python-dateutil
+sqlite-utils
+playwright
+beautifulsoup4
