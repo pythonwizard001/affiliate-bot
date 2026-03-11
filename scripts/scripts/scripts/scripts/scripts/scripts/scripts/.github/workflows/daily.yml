@@ -1,0 +1,72 @@
+name: affiliate-daily
+on:
+  schedule:
+    - cron: '0 2,14 * * *'  # two runs per day (02:00 and 14:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  run_pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps
+
+      - name: Init DB
+        run: python scripts/queue_manager.py
+
+      - name: Discover seeds
+        run: python scripts/discover.py
+
+      - name: Generate batch of articles
+        env:
+          BATCH_SIZE: 6
+        run: python scripts/gen_article.py
+
+      - name: Generate images (best-effort)
+        run: |
+          python - <<'PY'
+          import glob, os
+          from scripts.gen_image import request_image
+          for md in glob.glob("content/posts/*.md")[:6]:
+              name = os.path.basename(md).replace('.md','') + ".png"
+              p = request_image("product shot: " + os.path.basename(md), filename=name)
+              print("image:", p)
+          PY
+
+      - name: Commit new posts to GitHub (Pages/Netlify will deploy)
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python scripts/publisher_github.py
+
+      - name: Publish to WordPress (optional; runs only if WP secrets exist)
+        if: secrets.WP_SITE != ''
+        env:
+          WP_SITE: ${{ secrets.WP_SITE }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASS: ${{ secrets.WP_APP_PASS }}
+        run: python scripts/publisher_wordpress.py
+
+      - name: Syndicate to Reddit (throttled)
+        env:
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER: ${{ secrets.REDDIT_USER }}
+          REDDIT_PASS: ${{ secrets.REDDIT_PASS }}
+          REDDIT_SUBREDDITS: "Entrepreneur,SideHustle"
+        run: python scripts/syndicator_reddit.py
+
+      - name: Medium fallback via Playwright (if credentials present)
+        if: ${{ secrets.MEDIUM_EMAIL != '' && secrets.MEDIUM_PASSWORD != '' && secrets.MEDIUM_TOKEN == '' }}
+        env:
+          MEDIUM_EMAIL: ${{ secrets.MEDIUM_EMAIL }}
+          MEDIUM_PASSWORD: ${{ secrets.MEDIUM_PASSWORD }}
+        run: python scripts/medium_publish_playwright.py
