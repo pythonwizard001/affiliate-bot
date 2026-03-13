@@ -70,3 +70,28 @@ jobs:
           MEDIUM_EMAIL: ${{ secrets.MEDIUM_EMAIL }}
           MEDIUM_PASSWORD: ${{ secrets.MEDIUM_PASSWORD }}
         run: python scripts/medium_publish_playwright.py
+# syndication block to insert into .github/workflows/daily.yml
+- name: Syndicate to Telegram
+  env:
+    TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+    TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    SITE_URL: ${{ secrets.SITE_URL }}
+  run: python scripts/syndicator_telegram.py
+
+- name: Syndicate to Mastodon
+  env:
+    MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
+    MASTODON_TOKEN: ${{ secrets.MASTODON_TOKEN }}
+    SITE_URL: ${{ secrets.SITE_URL }}
+  run: python scripts/syndicator_mastodon.py
+
+- name: Syndicate to Pinterest (Playwright)
+  env:
+    PINTEREST_EMAIL: ${{ secrets.PINTEREST_EMAIL }}
+    PINTEREST_PASSWORD: ${{ secrets.PINTEREST_PASSWORD }}
+    PINTEREST_BOARD: ${{ secrets.PINTEREST_BOARD }}
+    SITE_URL: ${{ secrets.SITE_URL }}
+  run: |
+    pip install playwright
+    playwright install --with-deps
+    python scripts/pinterest_playwright.py
